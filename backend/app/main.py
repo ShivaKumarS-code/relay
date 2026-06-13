@@ -392,7 +392,9 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
         logger.warning(f"No meeting found matching MeetingBaas bot id: {bot_id}")
         return {"status": "ignored"}
         
-    if event in ["joined", "bot.joined", "meeting.started"] or (event == "bot.status_change" and payload.get("status") in ["in_call", "recording"]):
+    status_str = str(payload.get("status", "")).lower()
+    
+    if event in ["joined", "bot.joined", "meeting.started"] or (event == "bot.status_change" and any(s in status_str for s in ["in_call", "recording", "active"])):
         meeting.status = "active"
         db.commit()
         await manager.broadcast(meeting.id, {
@@ -473,7 +475,7 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
         # Trigger post-meeting integrations and analysis
         asyncio.create_task(on_meeting_completed(meeting.id))
         
-    elif event == "bot.status_change" and payload.get("status") == "ended":
+    elif event == "bot.status_change" and any(s in status_str for s in ["ended", "completed", "failed", "leave", "exit"]):
         meeting.status = "processing"
         db.commit()
         await manager.broadcast(meeting.id, {
@@ -484,7 +486,7 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
             "type": "status_update",
             "data": {"message": "Relay bot has left the call. Processing transcript..."}
         })
-        logger.info(f"MeetingBaas bot {bot_id} status changed to ended. Status updated to processing.")
+        logger.info(f"MeetingBaas bot {bot_id} status changed to {status_str}. Status updated to processing.")
         
     return {"status": "processed"}
 
