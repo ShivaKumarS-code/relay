@@ -46,7 +46,7 @@ export default function Dashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const BACKEND_URL = "http://localhost:8000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://relay-tasz.onrender.com";
 
   // Fetch all meetings
   const fetchMeetings = async () => {

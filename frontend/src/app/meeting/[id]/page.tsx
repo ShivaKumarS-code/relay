@@ -93,7 +93,7 @@ export default function MeetingRoom() {
   const [activeLogOverlay, setActiveLogOverlay] = useState<IntegrationLog | null>(null);
 
   const transcriptsEndRef = useRef<HTMLDivElement | null>(null);
-  const BACKEND_URL = "http://localhost:8000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://relay-tasz.onrender.com";
 
   // Fetch initial data
   useEffect(() => {
@@ -124,7 +124,9 @@ export default function MeetingRoom() {
 
   // Connect WebSockets
   useEffect(() => {
-    const wsUrl = `ws://localhost:8000/api/ws/${id}`;
+    const wsUrl = BACKEND_URL.startsWith("https")
+      ? BACKEND_URL.replace("https://", "wss://") + `/api/ws/${id}`
+      : BACKEND_URL.replace("http://", "ws://") + `/api/ws/${id}`;
     let socket = new WebSocket(wsUrl);
     
     socket.onmessage = (event) => {

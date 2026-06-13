@@ -383,7 +383,7 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
         logger.warning(f"No meeting found matching MeetingBaas bot id: {bot_id}")
         return {"status": "ignored"}
         
-    if event in ["joined", "bot.joined", "meeting.started"]:
+    if event in ["joined", "bot.joined", "meeting.started"] or (event == "bot.status_change" and payload.get("status") in ["in_call", "recording"]):
         meeting.status = "active"
         db.commit()
         await manager.broadcast(meeting.id, {
@@ -397,7 +397,12 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
         logger.info(f"MeetingBaas bot {bot_id} joined meeting {meeting.id}. Status updated to active.")
         
     elif event in ["complete", "bot.completed", "meeting.completed"]:
-        transcript_url = data.get("transcript_url")
+        transcript_url = (
+            data.get("transcription") or
+            data.get("transcript_url") or
+            payload.get("transcription") or
+            payload.get("transcript_url")
+        )
         if transcript_url:
             import urllib.request
             import json
@@ -406,10 +411,22 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
                 with urllib.request.urlopen(transcript_url) as response:
                     transcript_json = json.loads(response.read().decode("utf-8"))
                     
-                    for utterance in transcript_json:
-                        speaker = utterance.get("speaker", f"Speaker {utterance.get('speaker_id', 'Unknown')}")
+                    utterances = []
+                    if isinstance(transcript_json, list):
+                        utterances = transcript_json
+                    elif isinstance(transcript_json, dict):
+                        utterances = transcript_json.get("transcript") or transcript_json.get("utterances") or []
+                    
+                    for utterance in utterances:
+                        speaker = utterance.get("speaker") or utterance.get("speaker_id") or utterance.get("name") or "Unknown Speaker"
+                        if not isinstance(speaker, str):
+                            speaker = f"Speaker {speaker}"
                         text = utterance.get("text", "")
                         start_sec = utterance.get("start", 0)
+                        try:
+                            start_sec = float(start_sec)
+                        except (TypeError, ValueError):
+                            start_sec = 0.0
                         minutes = int(start_sec // 60)
                         secs = int(start_sec % 60)
                         timestamp = f"{minutes:02d}:{secs:02d}"
@@ -446,6 +463,19 @@ async def meetingbaas_webhook(payload: Dict[str, Any] = Body(...), db: Session =
         
         # Trigger post-meeting integrations and analysis
         asyncio.create_task(on_meeting_completed(meeting.id))
+        
+    elif event == "bot.status_change" and payload.get("status") == "ended":
+        meeting.status = "processing"
+        db.commit()
+        await manager.broadcast(meeting.id, {
+            "type": "meeting_processing",
+            "data": {"status": "processing"}
+        })
+        await manager.broadcast(meeting.id, {
+            "type": "status_update",
+            "data": {"message": "Relay bot has left the call. Processing transcript..."}
+        })
+        logger.info(f"MeetingBaas bot {bot_id} status changed to ended. Status updated to processing.")
         
     return {"status": "processed"}
 
