@@ -243,6 +243,15 @@ def get_meeting(id: str, db: Session = Depends(get_db)):
         ]
     }
 
+@app.delete("/api/meetings/{id}")
+def delete_meeting(id: str, db: Session = Depends(get_db)):
+    meeting = db.query(Meeting).filter(Meeting.id == id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    db.delete(meeting)
+    db.commit()
+    return {"status": "success", "message": "Meeting deleted"}
+
 @app.post("/api/meetings/{id}/clarify")
 async def resolve_clarification(
     id: str,

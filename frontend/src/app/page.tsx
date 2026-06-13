@@ -20,7 +20,8 @@ import {
   Database,
   X,
   ChevronRight,
-  Info
+  Info,
+  Trash2
 } from "lucide-react";
 
 interface Meeting {
@@ -120,6 +121,26 @@ export default function Dashboard() {
       setError(err.message || "Failed to deploy agent");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteMeeting = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this meeting? This will delete all transcripts, action items, and logs.")) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/meetings/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMeetings(prev => prev.filter(m => m.id !== id));
+      } else {
+        alert("Failed to delete meeting");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting meeting");
     }
   };
 
@@ -276,13 +297,25 @@ export default function Dashboard() {
                           {actionCount} action items
                         </span>
                         
-                        <Link 
-                          href={`/meeting/${meeting.id}`}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors"
-                        >
-                          <span>Enter</span>
-                          <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleDeleteMeeting(meeting.id);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                          <Link 
+                            href={`/meeting/${meeting.id}`}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                          >
+                            <span>Enter</span>
+                            <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   );
